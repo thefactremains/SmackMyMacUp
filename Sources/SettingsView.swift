@@ -35,7 +35,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    if engine.status == .running {
+                    if engine.status == .running || engine.isRestarting {
                         Toggle(isOn: $engine.isPaused) {
                             Label("Paused", systemImage: "pause.circle")
                         }
@@ -227,7 +227,8 @@ struct SettingsView: View {
     private var modeDescription: String {
         switch engine.mode {
         case .pain: return "Says \"ow!\" when slapped"
-        case .sexy: return "Escalating responses based on slap frequency"
+        case .sexy: return "Escalating female responses based on slap frequency"
+        case .sexyMale: return "Escalating male responses based on slap frequency"
         case .halo: return "Halo death sounds when slapped"
         }
     }

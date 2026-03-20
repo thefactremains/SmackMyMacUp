@@ -7,7 +7,8 @@ import ServiceManagement
 final class SpankEngine: ObservableObject {
     enum Mode: String, CaseIterable, Identifiable {
         case pain = "Pain"
-        case sexy = "Sexy"
+        case sexy = "Sexy (F)"
+        case sexyMale = "Sexy (M)"
         case halo = "Halo"
         var id: String { rawValue }
 
@@ -15,6 +16,7 @@ final class SpankEngine: ObservableObject {
             switch self {
             case .pain: return []
             case .sexy: return ["--sexy"]
+            case .sexyMale: return ["--sexy-male"]
             case .halo: return ["--halo"]
             }
         }
@@ -35,6 +37,7 @@ final class SpankEngine: ObservableObject {
     @Published var volumeScaling: Bool = false
     @Published var fastMode: Bool = false
     @Published var isPaused: Bool = false
+    @Published var isRestarting: Bool = false
     @Published var volume: Double = {
         // Read current system volume
         let script = NSAppleScript(source: "output volume of (get volume settings)")
@@ -208,12 +211,13 @@ final class SpankEngine: ObservableObject {
 
     func restart() {
         let wasRunning = status == .running
+        isRestarting = wasRunning
         stop()
         if wasRunning {
-            isEnabled = false
             Task {
                 try? await Task.sleep(for: .milliseconds(300))
-                isEnabled = true
+                start()
+                isRestarting = false
             }
         }
     }
