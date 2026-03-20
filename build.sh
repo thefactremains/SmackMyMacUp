@@ -43,6 +43,11 @@ cp "$SCRIPT_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$SPANK_BINARY" "$RESOURCES_DIR/spank"
 chmod +x "$RESOURCES_DIR/spank"
 
+# Copy app icon
+if [ -f "$SCRIPT_DIR/AppIcon.icns" ]; then
+    cp "$SCRIPT_DIR/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
+fi
+
 echo -n "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
 echo "==> Built: $APP_DIR"
