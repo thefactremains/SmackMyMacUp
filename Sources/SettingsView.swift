@@ -10,7 +10,7 @@ struct SettingsView: View {
                 Image(systemName: "hand.raised.fill")
                     .font(.title2)
                     .foregroundStyle(.pink)
-                Text("WhacMyMac")
+                Text("SmackMyMacUp")
                     .font(.title2.bold())
                 Spacer()
                 StatusBadge(status: engine.status)
@@ -22,23 +22,33 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Power toggle
-                    HStack {
-                        Toggle(isOn: Binding(
-                            get: { engine.status == .running || engine.status == .starting },
-                            set: { $0 ? engine.start() : engine.stop() }
-                        )) {
-                            Label("Enabled", systemImage: "power")
-                                .font(.headline)
+                    Toggle(isOn: $engine.isEnabled) {
+                        Label("Enabled", systemImage: "power")
+                            .font(.headline)
+                    }
+                    .toggleStyle(.switch)
+                    .onChange(of: engine.isEnabled) { newValue in
+                        if newValue {
+                            engine.start()
+                        } else {
+                            engine.stop()
                         }
-                        .toggleStyle(.switch)
                     }
 
                     if engine.status == .running {
-                        // Pause toggle
                         Toggle(isOn: $engine.isPaused) {
                             Label("Paused", systemImage: "pause.circle")
                         }
                         .toggleStyle(.switch)
+                        .onChange(of: engine.isPaused) { _ in
+                            engine.sendPauseState()
+                        }
+                    }
+
+                    if engine.status == .error, !engine.lastSlap.isEmpty {
+                        Text(engine.lastSlap)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
 
                     Divider()
@@ -54,6 +64,11 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
+                        .onChange(of: engine.mode) { _ in
+                            if engine.status == .running {
+                                engine.restart()
+                            }
+                        }
 
                         Text(modeDescription)
                             .font(.caption)
@@ -62,7 +77,7 @@ struct SettingsView: View {
 
                     Divider()
 
-                    // Sensitivity slider
+                    // Sensitivity
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Label("Sensitivity", systemImage: "waveform.path")
@@ -72,7 +87,10 @@ struct SettingsView: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: $engine.sensitivity, in: 0.01...0.5, step: 0.01)
+                        Slider(value: $engine.sensitivity, in: 0.05...0.50, step: 0.01)
+                            .onChange(of: engine.sensitivity) { _ in
+                                engine.sendLiveSettings()
+                            }
                         HStack {
                             Text("More sensitive")
                                 .font(.caption2)
@@ -84,7 +102,31 @@ struct SettingsView: View {
                         }
                     }
 
-                    // Cooldown slider
+                    // Volume
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Label("Volume", systemImage: "speaker.wave.2")
+                                .font(.headline)
+                            Spacer()
+                            Text("\(Int(engine.volume * 100))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        HStack(spacing: 6) {
+                            Image(systemName: "speaker.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $engine.volume, in: 0...1, step: 0.01)
+                                .onChange(of: engine.volume) { _ in
+                                    engine.setSystemVolume()
+                                }
+                            Image(systemName: "speaker.wave.3.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    // Cooldown
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Label("Cooldown", systemImage: "timer")
@@ -98,9 +140,12 @@ struct SettingsView: View {
                             get: { Double(engine.cooldown) },
                             set: { engine.cooldown = Int($0) }
                         ), in: 100...2000, step: 50)
+                            .onChange(of: engine.cooldown) { _ in
+                                engine.sendLiveSettings()
+                            }
                     }
 
-                    // Speed slider
+                    // Speed
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Label("Speed", systemImage: "gauge.with.needle")
@@ -111,6 +156,9 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Slider(value: $engine.speed, in: 0.3...2.0, step: 0.1)
+                            .onChange(of: engine.speed) { _ in
+                                engine.sendLiveSettings()
+                            }
                     }
 
                     // Toggles
@@ -118,16 +166,32 @@ struct SettingsView: View {
                         Label("Volume Scaling", systemImage: "speaker.wave.3")
                     }
                     .toggleStyle(.switch)
+                    .onChange(of: engine.volumeScaling) { _ in
+                        engine.toggleVolumeScaling()
+                    }
 
                     Toggle(isOn: $engine.fastMode) {
                         Label("Fast Mode", systemImage: "hare")
                     }
                     .toggleStyle(.switch)
+                    .onChange(of: engine.fastMode) { _ in
+                        if engine.status == .running {
+                            engine.restart()
+                        }
+                    }
 
                     Divider()
 
+                    Toggle(isOn: $engine.launchAtLogin) {
+                        Label("Launch at Login", systemImage: "arrow.right.circle")
+                    }
+                    .toggleStyle(.switch)
+                    .onChange(of: engine.launchAtLogin) { _ in
+                        engine.updateLaunchAtLogin()
+                    }
+
                     // Last slap info
-                    if !engine.lastSlap.isEmpty {
+                    if engine.status == .running, !engine.lastSlap.isEmpty {
                         HStack {
                             Image(systemName: "hand.point.up.left.fill")
                                 .foregroundStyle(.orange)
@@ -147,18 +211,17 @@ struct SettingsView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Quit") {
-                    engine.stop()
-                    NSApp.terminate(nil)
+                Button("Quit SmackMyMacUp") {
+                    engine.quit()
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.red)
-                .font(.caption)
+                .font(.caption.bold())
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
-        .frame(width: 320, height: 420)
+        .frame(width: 320, height: 580)
     }
 
     private var modeDescription: String {

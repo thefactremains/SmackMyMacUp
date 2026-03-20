@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$SCRIPT_DIR/.build"
-APP_NAME="WhacMyMac.app"
+APP_NAME="SmackMyMacUp.app"
 APP_DIR="$BUILD_DIR/$APP_NAME"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -33,7 +33,7 @@ swiftc \
     "$SCRIPT_DIR/Sources/AppDelegate.swift" \
     "$SCRIPT_DIR/Sources/SpankEngine.swift" \
     "$SCRIPT_DIR/Sources/SettingsView.swift" \
-    -o "$MACOS_DIR/WhacMyMac" \
+    -o "$MACOS_DIR/SmackMyMacUp" \
     2>&1
 
 echo "==> Assembling app bundle..."
@@ -51,7 +51,7 @@ echo "==> Size: $(du -sh "$APP_DIR" | cut -f1)"
 # Create DMG
 echo "==> Creating DMG..."
 DMG_DIR="$BUILD_DIR/dmg-staging"
-DMG_PATH="$BUILD_DIR/WhacMyMac.dmg"
+DMG_PATH="$BUILD_DIR/SmackMyMacUp.dmg"
 mkdir -p "$DMG_DIR"
 cp -R "$APP_DIR" "$DMG_DIR/"
 
@@ -59,7 +59,7 @@ ln -s /Applications "$DMG_DIR/Applications"
 
 if command -v create-dmg &>/dev/null; then
     create-dmg \
-        --volname "WhacMyMac" \
+        --volname "SmackMyMacUp" \
         --window-pos 200 120 \
         --window-size 600 400 \
         --icon-size 100 \
@@ -71,11 +71,11 @@ if command -v create-dmg &>/dev/null; then
         "$DMG_DIR" \
         2>&1 || {
             echo "create-dmg failed, using hdiutil..."
-            hdiutil create -volname "WhacMyMac" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG_PATH"
+            hdiutil create -volname "SmackMyMacUp" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG_PATH"
         }
 else
     echo "create-dmg not found, using hdiutil..."
-    hdiutil create -volname "WhacMyMac" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG_PATH"
+    hdiutil create -volname "SmackMyMacUp" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG_PATH"
 fi
 
 rm -rf "$DMG_DIR"

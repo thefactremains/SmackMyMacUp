@@ -1,4 +1,4 @@
-# WhacMyMac
+# SmackMyMacUp
 
 Native macOS menu bar app for [spank](https://github.com/taigrr/spank) — slap your MacBook, it yells back.
 
@@ -23,8 +23,8 @@ Native macOS menu bar app for [spank](https://github.com/taigrr/spank) — slap 
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USER/WhacMyMac.git
-cd WhacMyMac
+git clone https://github.com/YOUR_USER/SmackMyMacUp.git
+cd SmackMyMacUp
 
 # Clone the spank source
 git clone https://github.com/taigrr/spank.git temp-spank
@@ -41,8 +41,8 @@ The built `.app` and `.dmg` will be in `SpankMac/.build/`.
 
 ## Install
 
-1. Open `WhacMyMac.dmg`
-2. Drag `WhacMyMac.app` to Applications
+1. Open `SmackMyMacUp.dmg`
+2. Drag `SmackMyMacUp.app` to Applications
 3. Launch from Applications — it appears in the menu bar
 4. Click the hand icon to configure settings
 5. Toggle "Enabled" to start (requires sudo password for accelerometer access)

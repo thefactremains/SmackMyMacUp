@@ -1,7 +1,8 @@
 import Foundation
+import AppKit
 import Combine
+import ServiceManagement
 
-/// Manages the spank binary subprocess, communicating via JSON stdio.
 @MainActor
 final class SpankEngine: ObservableObject {
     enum Mode: String, CaseIterable, Identifiable {
@@ -26,27 +27,24 @@ final class SpankEngine: ObservableObject {
         case error = "Error"
     }
 
-    @Published var mode: Mode = .pain {
-        didSet { if oldValue != mode { restart() } }
-    }
-    @Published var sensitivity: Double = 0.05 {
-        didSet { sendSettings() }
-    }
-    @Published var cooldown: Int = 750 {
-        didSet { sendSettings() }
-    }
-    @Published var speed: Double = 1.0 {
-        didSet { sendSettings() }
-    }
-    @Published var volumeScaling: Bool = false {
-        didSet { sendCommand(["cmd": "volume-scaling"]) }
-    }
-    @Published var fastMode: Bool = false {
-        didSet { restart() }
-    }
-    @Published var isPaused: Bool = false {
-        didSet { sendCommand(["cmd": isPaused ? "pause" : "resume"]) }
-    }
+    @Published var isEnabled: Bool = false
+    @Published var mode: Mode = .pain
+    @Published var sensitivity: Double = 0.25
+    @Published var cooldown: Int = 750
+    @Published var speed: Double = 1.0
+    @Published var volumeScaling: Bool = false
+    @Published var fastMode: Bool = false
+    @Published var isPaused: Bool = false
+    @Published var volume: Double = {
+        // Read current system volume
+        let script = NSAppleScript(source: "output volume of (get volume settings)")
+        var err: NSDictionary?
+        if let result = script?.executeAndReturnError(&err).stringValue, let v = Double(result) {
+            return v / 100.0
+        }
+        return 0.5
+    }()
+    @Published var launchAtLogin: Bool = false
     @Published var status: Status = .stopped
     @Published var lastSlap: String = ""
     @Published var slapCount: Int = 0
@@ -56,6 +54,51 @@ final class SpankEngine: ObservableObject {
     private var stdoutPipe: Pipe?
     private var readTask: Task<Void, Never>?
 
+    init() {
+        if #available(macOS 13.0, *) {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+    }
+
+    // MARK: - Sudoers setup (one-time)
+
+    private var sudoersPath: String { "/etc/sudoers.d/smackmymacup" }
+
+    private var isSudoConfigured: Bool {
+        FileManager.default.fileExists(atPath: sudoersPath)
+    }
+
+    /// Creates a sudoers entry so the spank binary and pkill can run as root without a password.
+    /// Only needs to happen once — uses AppleScript for the admin auth dialog.
+    private func ensureSudoAccess() -> Bool {
+        if isSudoConfigured { return true }
+
+        let binaryPath = Self.binaryPath()
+        // sudoers entries: allow running spank and pkill (for cleanup) as root, no password
+        let lines = [
+            "ALL ALL=(root) NOPASSWD: \(binaryPath)",
+            "ALL ALL=(root) NOPASSWD: /usr/bin/pkill"
+        ]
+        let entry = lines.joined(separator: "\\n")
+        let cmd = "printf '\(entry)\\n' > \(sudoersPath) && chmod 0440 \(sudoersPath)"
+        let script = "do shell script \"\(cmd)\" with administrator privileges"
+
+        NSLog("SmackMyMacUp: setting up sudoers (one-time)")
+        let appleScript = NSAppleScript(source: script)
+        var errorInfo: NSDictionary?
+        appleScript?.executeAndReturnError(&errorInfo)
+
+        if errorInfo != nil {
+            NSLog("SmackMyMacUp: sudoers setup failed: \(errorInfo!)")
+            return false
+        }
+
+        NSLog("SmackMyMacUp: sudoers configured")
+        return true
+    }
+
+    // MARK: - Start / Stop
+
     func start() {
         guard status == .stopped || status == .error else { return }
         status = .starting
@@ -63,7 +106,15 @@ final class SpankEngine: ObservableObject {
         let binaryPath = Self.binaryPath()
         guard FileManager.default.fileExists(atPath: binaryPath) else {
             status = .error
-            lastSlap = "Binary not found at \(binaryPath)"
+            isEnabled = false
+            lastSlap = "Binary not found"
+            return
+        }
+
+        // One-time: set up passwordless sudo
+        if !ensureSudoAccess() {
+            status = .stopped
+            isEnabled = false
             return
         }
 
@@ -86,7 +137,11 @@ final class SpankEngine: ObservableObject {
 
         proc.terminationHandler = { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.status = .stopped
+                guard let self = self else { return }
+                if self.status != .stopped {
+                    self.status = .stopped
+                    self.isEnabled = false
+                }
             }
         }
 
@@ -94,6 +149,7 @@ final class SpankEngine: ObservableObject {
             try proc.run()
         } catch {
             status = .error
+            isEnabled = false
             lastSlap = "Failed to start: \(error.localizedDescription)"
             return
         }
@@ -101,45 +157,88 @@ final class SpankEngine: ObservableObject {
         process = proc
         stdinPipe = stdin
         stdoutPipe = stdout
+        status = .running
 
-        // Read stdout for events
-        readTask = Task { [weak self] in
+        NSLog("SmackMyMacUp: spank started (PID \(proc.processIdentifier))")
+
+        // Read stdout for slap events — must be detached to avoid blocking MainActor
+        readTask = Task.detached { [weak self] in
             let handle = stdout.fileHandleForReading
-            while let self = self, !Task.isCancelled {
+            while !Task.isCancelled {
                 let data = handle.availableData
                 if data.isEmpty { break }
-                if let line = String(data: data, encoding: .utf8) {
-                    for jsonLine in line.components(separatedBy: "\n") where !jsonLine.isEmpty {
-                        await self.handleOutput(jsonLine)
+                if let text = String(data: data, encoding: .utf8) {
+                    for line in text.components(separatedBy: "\n") where !line.isEmpty {
+                        await self?.handleOutput(line)
                     }
                 }
             }
         }
-
-        status = .running
     }
 
     func stop() {
+        NSLog("SmackMyMacUp: stopping")
         readTask?.cancel()
         readTask = nil
+
+        // Close stdin pipe first — this causes spank to exit cleanly
+        if let pipe = stdinPipe {
+            pipe.fileHandleForWriting.closeFile()
+        }
+        stdinPipe = nil
+
+        // Kill any remaining spank processes via sudo pkill
+        let killProc = Process()
+        killProc.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        killProc.arguments = ["pkill", "-9", "-f", "spank --stdio"]
+        killProc.standardOutput = FileHandle.nullDevice
+        killProc.standardError = FileHandle.nullDevice
+        try? killProc.run()
+
+        // Also terminate the sudo wrapper
         if let proc = process, proc.isRunning {
             proc.terminate()
         }
+
         process = nil
-        stdinPipe = nil
         stdoutPipe = nil
         status = .stopped
         slapCount = 0
     }
 
     func restart() {
-        guard status == .running || status == .starting else { return }
+        let wasRunning = status == .running
         stop()
-        // Small delay to let the process fully terminate
-        Task {
-            try? await Task.sleep(for: .milliseconds(500))
-            start()
+        if wasRunning {
+            isEnabled = false
+            Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                isEnabled = true
+            }
         }
+    }
+
+    func quit() {
+        stop()
+        NSApp.terminate(nil)
+    }
+
+    // MARK: - Live settings via stdin JSON
+
+    func sendLiveSettings() {
+        var cmd: [String: Any] = ["cmd": "set"]
+        cmd["amplitude"] = sensitivity
+        cmd["cooldown"] = cooldown
+        cmd["speed"] = speed
+        sendCommand(cmd)
+    }
+
+    func sendPauseState() {
+        sendCommand(["cmd": isPaused ? "pause" : "resume"])
+    }
+
+    func toggleVolumeScaling() {
+        sendCommand(["cmd": "volume-scaling"])
     }
 
     private func sendCommand(_ dict: [String: Any]) {
@@ -148,15 +247,10 @@ final class SpankEngine: ObservableObject {
         var payload = data
         payload.append(contentsOf: [UInt8(ascii: "\n")])
         pipe.fileHandleForWriting.write(payload)
+        NSLog("SmackMyMacUp: sent command \(String(data: data, encoding: .utf8) ?? "?")")
     }
 
-    private func sendSettings() {
-        var cmd: [String: Any] = ["cmd": "set"]
-        cmd["amplitude"] = sensitivity
-        cmd["cooldown"] = cooldown
-        cmd["speed"] = speed
-        sendCommand(cmd)
-    }
+    // MARK: - Output handling
 
     private func handleOutput(_ json: String) async {
         guard let data = json.data(using: .utf8),
@@ -175,12 +269,37 @@ final class SpankEngine: ObservableObject {
         }
     }
 
+    // MARK: - Volume
+
+    func setSystemVolume() {
+        let vol = Int(volume * 100)
+        let script = NSAppleScript(source: "set volume output volume \(vol)")
+        var err: NSDictionary?
+        script?.executeAndReturnError(&err)
+    }
+
+    // MARK: - Launch at login
+
+    func updateLaunchAtLogin() {
+        if #available(macOS 13.0, *) {
+            do {
+                if launchAtLogin {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                lastSlap = "Launch at login failed"
+            }
+        }
+    }
+
+    // MARK: - Binary path
+
     static func binaryPath() -> String {
-        // Check for bundled binary in app Resources
         if let bundled = Bundle.main.path(forResource: "spank", ofType: nil) {
             return bundled
         }
-        // Fallback: check common install locations
         for path in ["/usr/local/bin/spank", "/opt/homebrew/bin/spank"] {
             if FileManager.default.fileExists(atPath: path) {
                 return path

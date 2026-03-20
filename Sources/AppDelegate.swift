@@ -13,13 +13,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "WhacMyMac")
+            if let img = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "SmackMyMacUp") {
+                img.isTemplate = true
+                button.image = img
+            } else {
+                button.title = "👋"
+            }
             button.action = #selector(togglePopover)
             button.target = self
         }
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 420)
+        popover.contentSize = NSSize(width: 320, height: 520)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: SettingsView(engine: engine))
     }
