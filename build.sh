@@ -33,6 +33,7 @@ swiftc \
     "$SCRIPT_DIR/Sources/AppDelegate.swift" \
     "$SCRIPT_DIR/Sources/SpankEngine.swift" \
     "$SCRIPT_DIR/Sources/SettingsView.swift" \
+    "$SCRIPT_DIR/Sources/UpdateChecker.swift" \
     -o "$MACOS_DIR/SmackMyMacUp" \
     2>&1
 

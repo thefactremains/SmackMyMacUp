@@ -8,22 +8,23 @@ Your MacBook has feelings. Hit it and find out.
 
 When you physically smack your MacBook, the built-in accelerometer picks up the impact. SmackMyMacUp translates that into audio feedback — anything from a pained "ow!" to... well, let's just say there are multiple modes.
 
-**Three modes to choose from:**
+**Sound modes:**
 
 - **Pain** — Your Mac says "ow!" like a reasonable being that just got hit
-- **Sexy** — Escalating responses based on how often you slap it. We won't elaborate.
 - **Halo** — Classic Halo death sounds. For the nostalgic slappers.
+- **Sexy (F) / Sexy (M)** — Escalating responses based on slap frequency. Hidden by default — tap the hand icon 3 times to unlock.
 
 ## Features
 
 - Lives in your menu bar — zero desktop clutter
-- Real-time sensitivity, cooldown, and speed controls
+- Real-time sensitivity and cooldown controls
 - System volume slider built right in
 - Live slap counter (flex your numbers)
 - Launch at login — because your Mac should always be ready for abuse
 - Pause/resume without quitting
 - Volume scaling — harder slaps = louder sounds
-- Fast mode for the impatient
+- Hidden adult modes — tap the hand icon 3x to toggle
+- Check for updates — one click to see if a new version is available
 - One-time admin setup, no password prompts after that
 
 ## Install
@@ -61,7 +62,7 @@ Output lands in `SpankMac/.build/`.
 
 ## How it works
 
-SmackMyMacUp is a native Swift menu bar app that wraps the [spank](https://github.com/taigrr/spank) engine. It launches `spank` in `--stdio` mode, communicating over JSON via stdin/stdout. Settings changes are sent live — no restarts needed for sensitivity, cooldown, or speed tweaks. Mode changes restart the engine seamlessly in the background.
+SmackMyMacUp is a native Swift menu bar app that wraps the [spank](https://github.com/taigrr/spank) engine. It launches `spank` in `--stdio` mode, communicating over JSON via stdin/stdout. Settings changes are sent live — no restarts needed for sensitivity or cooldown tweaks. Mode changes restart the engine seamlessly in the background.
 
 The accelerometer requires root access, so the app creates a one-time sudoers entry on first launch (with your permission). After that, no more password prompts.
 

@@ -12,12 +12,58 @@ final class SpankEngine: ObservableObject {
         case halo = "Halo"
         var id: String { rawValue }
 
+        var isAdult: Bool {
+            self == .sexy || self == .sexyMale
+        }
+
         var flags: [String] {
             switch self {
             case .pain: return []
             case .sexy: return ["--sexy"]
             case .sexyMale: return ["--sexy-male"]
             case .halo: return ["--halo"]
+            }
+        }
+    }
+
+    static let adultUnlockThreshold = 3
+    @Published var adultModeUnlocked: Bool = UserDefaults.standard.bool(forKey: "adultModeUnlocked")
+    @Published var adultTapCount: Int = 0
+    @Published var adultTapMessage: String = ""
+
+    var visibleModes: [Mode] {
+        Mode.allCases.filter { adultModeUnlocked || !$0.isAdult }
+    }
+
+    func handleIconTap() {
+        adultTapCount += 1
+        let remaining = Self.adultUnlockThreshold - adultTapCount
+        if remaining <= 0 {
+            adultTapCount = 0
+            adultModeUnlocked.toggle()
+            UserDefaults.standard.set(adultModeUnlocked, forKey: "adultModeUnlocked")
+            if adultModeUnlocked {
+                adultTapMessage = "Adult modes unlocked 🔓"
+            } else {
+                // Reset to safe mode if currently on an adult mode
+                if mode.isAdult {
+                    mode = .pain
+                    if status == .running { restart() }
+                }
+                adultTapMessage = "Adult modes hidden 🔒"
+            }
+        } else {
+            adultTapMessage = "\(remaining) tap\(remaining == 1 ? "" : "s") to \(adultModeUnlocked ? "hide" : "unlock") adult modes"
+        }
+
+        // Clear message after 2 seconds
+        if !adultTapMessage.isEmpty {
+            let msg = adultTapMessage
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                if self.adultTapMessage == msg {
+                    self.adultTapMessage = ""
+                }
             }
         }
     }
@@ -35,7 +81,7 @@ final class SpankEngine: ObservableObject {
     @Published var cooldown: Int = 750
     @Published var speed: Double = 1.0
     @Published var volumeScaling: Bool = false
-    @Published var fastMode: Bool = false
+    @Published var fastMode: Bool = true
     @Published var isPaused: Bool = false
     @Published var isRestarting: Bool = false
     @Published var volume: Double = {

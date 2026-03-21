@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var engine: SpankEngine
+    @StateObject private var updater = UpdateChecker()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -10,12 +11,24 @@ struct SettingsView: View {
                 Image(systemName: "hand.raised.fill")
                     .font(.title2)
                     .foregroundStyle(.pink)
+                    .onTapGesture {
+                        engine.handleIconTap()
+                    }
                 Text("SmackMyMacUp")
                     .font(.title2.bold())
                 Spacer()
                 StatusBadge(status: engine.status)
             }
             .padding()
+
+            if !engine.adultTapMessage.isEmpty {
+                Text(engine.adultTapMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .transition(.opacity)
+                    .animation(.easeInOut, value: engine.adultTapMessage)
+            }
 
             Divider()
 
@@ -58,7 +71,7 @@ struct SettingsView: View {
                         Label("Mode", systemImage: "music.note.list")
                             .font(.headline)
                         Picker("Mode", selection: $engine.mode) {
-                            ForEach(SpankEngine.Mode.allCases) { mode in
+                            ForEach(engine.visibleModes) { mode in
                                 Text(mode.rawValue).tag(mode)
                             }
                         }
@@ -77,7 +90,7 @@ struct SettingsView: View {
 
                     Divider()
 
-                    // Sensitivity
+                    // Sensitivity (slider is inverted: low value = less sensitive, high value = more sensitive)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Label("Sensitivity", systemImage: "waveform.path")
@@ -87,16 +100,19 @@ struct SettingsView: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: $engine.sensitivity, in: 0.05...0.50, step: 0.01)
+                        Slider(value: Binding(
+                            get: { 0.55 - engine.sensitivity },
+                            set: { engine.sensitivity = 0.55 - $0 }
+                        ), in: 0.05...0.50, step: 0.01)
                             .onChange(of: engine.sensitivity) { _ in
                                 engine.sendLiveSettings()
                             }
                         HStack {
-                            Text("More sensitive")
+                            Text("Less sensitive")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("Less sensitive")
+                            Text("More sensitive")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -143,22 +159,9 @@ struct SettingsView: View {
                             .onChange(of: engine.cooldown) { _ in
                                 engine.sendLiveSettings()
                             }
-                    }
-
-                    // Speed
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Label("Speed", systemImage: "gauge.with.needle")
-                                .font(.headline)
-                            Spacer()
-                            Text(String(format: "%.1fx", engine.speed))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $engine.speed, in: 0.3...2.0, step: 0.1)
-                            .onChange(of: engine.speed) { _ in
-                                engine.sendLiveSettings()
-                            }
+                        Text("Minimum time between slap sounds")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
 
                     // Toggles
@@ -169,16 +172,9 @@ struct SettingsView: View {
                     .onChange(of: engine.volumeScaling) { _ in
                         engine.toggleVolumeScaling()
                     }
-
-                    Toggle(isOn: $engine.fastMode) {
-                        Label("Fast Mode", systemImage: "hare")
-                    }
-                    .toggleStyle(.switch)
-                    .onChange(of: engine.fastMode) { _ in
-                        if engine.status == .running {
-                            engine.restart()
-                        }
-                    }
+                    Text("Harder slaps play louder sounds")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
 
                     Divider()
 
@@ -205,11 +201,68 @@ struct SettingsView: View {
 
             Divider()
 
+            // Update status
+            Group {
+                switch updater.state {
+                case .checking:
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Checking for updates…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 6)
+                case .upToDate:
+                    Text("You're on the latest version (v\(updater.currentVersion))")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .padding(.horizontal)
+                        .padding(.top, 6)
+                case .available(let version, let url):
+                    HStack {
+                        Text("v\(version) available!")
+                            .font(.caption.bold())
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Button("Download") {
+                            NSWorkspace.shared.open(url)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption.bold())
+                        .foregroundStyle(.blue)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 6)
+                case .error(let msg):
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(.horizontal)
+                        .padding(.top, 6)
+                case .idle:
+                    EmptyView()
+                }
+            }
+
             // Footer
             HStack {
                 Text("Slaps: \(engine.slapCount)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                Spacer()
+                Button("Check for Updates") {
+                    updater.check()
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(.blue)
+            }
+            .padding(.horizontal)
+            .padding(.top, 4)
+
+            HStack {
                 Spacer()
                 Button("Quit SmackMyMacUp") {
                     engine.quit()
@@ -219,7 +272,7 @@ struct SettingsView: View {
                 .font(.caption.bold())
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
         }
         .frame(width: 320, height: 580)
     }
