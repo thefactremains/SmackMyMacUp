@@ -34,28 +34,14 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Power toggle
-                    Toggle(isOn: $engine.isEnabled) {
-                        Label("Enabled", systemImage: "power")
+                    // Pause toggle
+                    Toggle(isOn: $engine.isPaused) {
+                        Label("Pause", systemImage: "pause.circle")
                             .font(.headline)
                     }
                     .toggleStyle(.switch)
-                    .onChange(of: engine.isEnabled) { newValue in
-                        if newValue {
-                            engine.start()
-                        } else {
-                            engine.stop()
-                        }
-                    }
-
-                    if engine.status == .running || engine.isRestarting {
-                        Toggle(isOn: $engine.isPaused) {
-                            Label("Paused", systemImage: "pause.circle")
-                        }
-                        .toggleStyle(.switch)
-                        .onChange(of: engine.isPaused) { _ in
-                            engine.sendPauseState()
-                        }
+                    .onChange(of: engine.isPaused) { _ in
+                        engine.sendPauseState()
                     }
 
                     if engine.status == .error, !engine.lastSlap.isEmpty {

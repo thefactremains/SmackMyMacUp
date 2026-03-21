@@ -75,7 +75,9 @@ final class SpankEngine: ObservableObject {
         case error = "Error"
     }
 
-    @Published var isEnabled: Bool = false
+    @Published var isEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(isEnabled, forKey: "isEnabled") }
+    }
     @Published var mode: Mode = .pain
     @Published var sensitivity: Double = 0.25
     @Published var cooldown: Int = 750
@@ -106,6 +108,13 @@ final class SpankEngine: ObservableObject {
     init() {
         if #available(macOS 13.0, *) {
             launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+
+        // Auto-enable: on first launch (no key yet) or if it was enabled last time
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "isEnabled") == nil || defaults.bool(forKey: "isEnabled") {
+            isEnabled = true
+            start()
         }
     }
 
