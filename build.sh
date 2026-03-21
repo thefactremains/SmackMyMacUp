@@ -67,6 +67,35 @@ cp -R "$APP_DIR" "$DMG_DIR/"
 
 ln -s /Applications "$DMG_DIR/Applications"
 
+# Create installer script inside DMG
+cat > "$DMG_DIR/Install.command" << 'INSTALLER'
+#!/bin/bash
+clear
+echo "=============================="
+echo "  SmackMyMacUp Installer"
+echo "=============================="
+echo ""
+
+APP_NAME="SmackMyMacUp.app"
+DMG_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEST="/Applications/$APP_NAME"
+
+# Close the app if running
+pkill -x SmackMyMacUp 2>/dev/null && sleep 1
+
+echo "Installing $APP_NAME..."
+cp -R "$DMG_DIR/$APP_NAME" /Applications/
+xattr -cr "$DEST"
+echo "✓ Installed to /Applications"
+echo "✓ Quarantine flag removed"
+echo ""
+echo "Launching SmackMyMacUp..."
+open "$DEST"
+echo ""
+echo "Done! You can close this window."
+INSTALLER
+chmod +x "$DMG_DIR/Install.command"
+
 if command -v create-dmg &>/dev/null; then
     create-dmg \
         --volname "SmackMyMacUp" \
