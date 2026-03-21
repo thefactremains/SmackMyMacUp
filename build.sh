@@ -58,17 +58,15 @@ codesign --force --deep -s - "$APP_DIR"
 echo "==> Built: $APP_DIR"
 echo "==> Size: $(du -sh "$APP_DIR" | cut -f1)"
 
-# Create DMG
-echo "==> Creating DMG..."
-DMG_DIR="$BUILD_DIR/dmg-staging"
-DMG_PATH="$BUILD_DIR/SmackMyMacUp.dmg"
-mkdir -p "$DMG_DIR"
-cp -R "$APP_DIR" "$DMG_DIR/"
+# Create zip distribution
+echo "==> Creating zip..."
+ZIP_DIR="$BUILD_DIR/zip-staging"
+ZIP_PATH="$BUILD_DIR/SmackMyMacUp.zip"
+mkdir -p "$ZIP_DIR"
+cp -R "$APP_DIR" "$ZIP_DIR/"
 
-ln -s /Applications "$DMG_DIR/Applications"
-
-# Create installer script inside DMG
-cat > "$DMG_DIR/Install.command" << 'INSTALLER'
+# Create installer script
+cat > "$ZIP_DIR/Install.command" << 'INSTALLER'
 #!/bin/bash
 clear
 echo "=============================="
@@ -77,14 +75,14 @@ echo "=============================="
 echo ""
 
 APP_NAME="SmackMyMacUp.app"
-DMG_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEST="/Applications/$APP_NAME"
 
 # Close the app if running
 pkill -x SmackMyMacUp 2>/dev/null && sleep 1
 
 echo "Installing $APP_NAME..."
-cp -R "$DMG_DIR/$APP_NAME" /Applications/
+cp -R "$SCRIPT_DIR/$APP_NAME" /Applications/
 xattr -cr "$DEST"
 echo "✓ Installed to /Applications"
 echo "✓ Quarantine flag removed"
@@ -94,30 +92,12 @@ open "$DEST"
 echo ""
 echo "Done! You can close this window."
 INSTALLER
-chmod +x "$DMG_DIR/Install.command"
+chmod +x "$ZIP_DIR/Install.command"
 
-if command -v create-dmg &>/dev/null; then
-    create-dmg \
-        --volname "SmackMyMacUp" \
-        --window-pos 200 120 \
-        --window-size 600 400 \
-        --icon-size 100 \
-        --icon "$APP_NAME" 150 185 \
-        --icon "Applications" 450 185 \
-        --hide-extension "$APP_NAME" \
-        --app-drop-link 450 185 \
-        "$DMG_PATH" \
-        "$DMG_DIR" \
-        2>&1 || {
-            echo "create-dmg failed, using hdiutil..."
-            hdiutil create -volname "SmackMyMacUp" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG_PATH"
-        }
-else
-    echo "create-dmg not found, using hdiutil..."
-    hdiutil create -volname "SmackMyMacUp" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG_PATH"
-fi
+cd "$ZIP_DIR"
+zip -r "$ZIP_PATH" . -x ".*"
+cd "$SCRIPT_DIR"
+rm -rf "$ZIP_DIR"
 
-rm -rf "$DMG_DIR"
-
-echo "==> DMG created: $DMG_PATH"
+echo "==> Zip created: $ZIP_PATH"
 echo "==> Done!"

@@ -29,15 +29,13 @@ When you physically smack your MacBook, the built-in accelerometer picks up the 
 
 ## Install
 
-1. Download `SmackMyMacUp.dmg` from the [latest release](https://github.com/thefactremains/SmackMyMacUp/releases/latest)
-2. **Before opening the DMG**, run this in Terminal to remove Apple's quarantine flag:
-   ```bash
-   xattr -cr ~/Downloads/SmackMyMacUp.dmg
-   ```
-3. Open the DMG and double-click **`Install.command`** — it copies the app to Applications and launches it
-4. Enter your password once (for accelerometer access), and start slapping
+1. Download `SmackMyMacUp.zip` from the [latest release](https://github.com/thefactremains/SmackMyMacUp/releases/latest)
+2. Unzip it, then **right-click `Install.command` → Open** (not double-click)
+3. Click **Open** when macOS asks for confirmation — this only happens once
+4. The installer copies the app to Applications, removes quarantine, and launches it
+5. Enter your password once (for accelerometer access), and start slapping
 
-> **Why is this needed?** macOS quarantines all files downloaded from the internet. Without a paid Apple Developer certificate ($99/year), unsigned apps get blocked with a "damaged" error. The `xattr -cr` command removes this quarantine flag — the app is not actually damaged.
+> **Why right-click → Open?** macOS blocks unsigned apps and scripts downloaded from the internet. Right-click → Open bypasses this for the installer script. You only need to do this once — future launches work normally.
 
 ## Build from source
 
