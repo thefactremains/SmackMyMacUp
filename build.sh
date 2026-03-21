@@ -79,11 +79,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Close the app if running
 pkill -x SmackMyMacUp 2>/dev/null && sleep 1
 
-# Find the .app in the same directory
-APP_SRC="$(find "$SCRIPT_DIR" -maxdepth 1 -name "*.app" -print -quit)"
+# Search for the .app bundle in multiple locations
+APP_SRC=""
+for search_dir in "$SCRIPT_DIR" "$SCRIPT_DIR/.." "$HOME/Downloads" "$HOME/Downloads/SmackMyMacUp" "$HOME/Desktop"; do
+    found="$(find "$search_dir" -maxdepth 2 -name "SmackMyMacUp.app" -print -quit 2>/dev/null)"
+    if [ -n "$found" ]; then
+        APP_SRC="$found"
+        break
+    fi
+done
+
 if [ -z "$APP_SRC" ]; then
-    echo "Error: Could not find .app bundle next to this script."
-    echo "Make sure Install.command is in the same folder as the app."
+    echo "Error: Could not find the app bundle."
+    echo ""
+    echo "Please extract the zip file first, then run Install.command"
+    echo "from the extracted folder."
     exit 1
 fi
 
