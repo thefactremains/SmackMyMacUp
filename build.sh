@@ -79,35 +79,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Close the app if running
 pkill -x SmackMyMacUp 2>/dev/null && sleep 1
 
-# Search for the .app bundle in multiple locations
-APP_SRC=""
-for search_dir in "$SCRIPT_DIR" "$SCRIPT_DIR/.." "$HOME/Downloads" "$HOME/Downloads/SmackMyMacUp" "$HOME/Desktop"; do
-    found="$(find "$search_dir" -maxdepth 2 -name "SmackMyMacUp.app" -print -quit 2>/dev/null)"
-    if [ -n "$found" ]; then
-        APP_SRC="$found"
-        break
-    fi
-done
-
-if [ -z "$APP_SRC" ]; then
-    echo "Error: Could not find the app bundle."
-    echo ""
-    echo "Please extract the zip file first, then run Install.command"
-    echo "from the extracted folder."
-    exit 1
-fi
-
-APP_BASENAME="$(basename "$APP_SRC")"
-DEST="/Applications/$APP_BASENAME"
-
-echo "Installing $APP_BASENAME..."
-cp -R "$APP_SRC" "/Applications/"
-xattr -cr "$DEST"
+echo "Installing SmackMyMacUp.app..."
+cp -R "$SCRIPT_DIR/SmackMyMacUp.app" /Applications/
+xattr -cr /Applications/SmackMyMacUp.app
 echo "✓ Installed to /Applications"
 echo "✓ Quarantine flag removed"
 echo ""
-echo "Launching $APP_BASENAME..."
-open "$DEST"
+echo "Launching SmackMyMacUp..."
+open /Applications/SmackMyMacUp.app
 echo ""
 echo "Done! You can close this window."
 INSTALLER
