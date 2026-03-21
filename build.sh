@@ -74,20 +74,29 @@ echo "  SmackMyMacUp Installer"
 echo "=============================="
 echo ""
 
-APP_NAME="SmackMyMacUp.app"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEST="/Applications/$APP_NAME"
 
 # Close the app if running
 pkill -x SmackMyMacUp 2>/dev/null && sleep 1
 
-echo "Installing $APP_NAME..."
-cp -R "$SCRIPT_DIR/$APP_NAME" /Applications/
+# Find the .app in the same directory
+APP_SRC="$(find "$SCRIPT_DIR" -maxdepth 1 -name "*.app" -print -quit)"
+if [ -z "$APP_SRC" ]; then
+    echo "Error: Could not find .app bundle next to this script."
+    echo "Make sure Install.command is in the same folder as the app."
+    exit 1
+fi
+
+APP_BASENAME="$(basename "$APP_SRC")"
+DEST="/Applications/$APP_BASENAME"
+
+echo "Installing $APP_BASENAME..."
+cp -R "$APP_SRC" "/Applications/"
 xattr -cr "$DEST"
 echo "✓ Installed to /Applications"
 echo "✓ Quarantine flag removed"
 echo ""
-echo "Launching SmackMyMacUp..."
+echo "Launching $APP_BASENAME..."
 open "$DEST"
 echo ""
 echo "Done! You can close this window."
