@@ -51,6 +51,10 @@ fi
 
 echo -n "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
+# Ad-hoc code sign to reduce Gatekeeper friction
+echo "==> Ad-hoc signing..."
+codesign --force --deep -s - "$APP_DIR"
+
 echo "==> Built: $APP_DIR"
 echo "==> Size: $(du -sh "$APP_DIR" | cut -f1)"
 
