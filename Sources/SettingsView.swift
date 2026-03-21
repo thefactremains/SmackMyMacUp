@@ -183,6 +183,7 @@ struct SettingsView: View {
                     }
                 }
                 .padding()
+                .tint(.blue)
             }
 
             Divider()

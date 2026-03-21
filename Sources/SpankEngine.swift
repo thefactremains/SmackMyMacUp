@@ -75,9 +75,7 @@ final class SpankEngine: ObservableObject {
         case error = "Error"
     }
 
-    @Published var isEnabled: Bool = false {
-        didSet { UserDefaults.standard.set(isEnabled, forKey: "isEnabled") }
-    }
+    @Published var isEnabled: Bool = false
     @Published var mode: Mode = .pain
     @Published var sensitivity: Double = 0.25
     @Published var cooldown: Int = 750
@@ -86,15 +84,9 @@ final class SpankEngine: ObservableObject {
     @Published var fastMode: Bool = true
     @Published var isPaused: Bool = false
     @Published var isRestarting: Bool = false
-    @Published var volume: Double = {
-        // Read current system volume
-        let script = NSAppleScript(source: "output volume of (get volume settings)")
-        var err: NSDictionary?
-        if let result = script?.executeAndReturnError(&err).stringValue, let v = Double(result) {
-            return v / 100.0
-        }
-        return 0.5
-    }()
+    @Published var volume: Double = 0.6 {
+        didSet { UserDefaults.standard.set(volume, forKey: "volume") }
+    }
     @Published var launchAtLogin: Bool = false
     @Published var status: Status = .stopped
     @Published var lastSlap: String = ""
@@ -110,12 +102,9 @@ final class SpankEngine: ObservableObject {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
 
-        // Auto-enable: on first launch (no key yet) or if it was enabled last time
-        let defaults = UserDefaults.standard
-        if defaults.object(forKey: "isEnabled") == nil || defaults.bool(forKey: "isEnabled") {
-            isEnabled = true
-            start()
-        }
+        // Always start when the app launches
+        isEnabled = true
+        start()
     }
 
     // MARK: - Sudoers setup (one-time)
@@ -157,9 +146,22 @@ final class SpankEngine: ObservableObject {
 
     // MARK: - Start / Stop
 
+    /// Kill any orphaned spank processes left over from a previous app instance.
+    private func killStaleProcesses() {
+        let killProc = Process()
+        killProc.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        killProc.arguments = ["pkill", "-9", "-f", "spank --stdio"]
+        killProc.standardOutput = FileHandle.nullDevice
+        killProc.standardError = FileHandle.nullDevice
+        try? killProc.run()
+        killProc.waitUntilExit()
+    }
+
     func start() {
         guard status == .stopped || status == .error else { return }
         status = .starting
+
+        killStaleProcesses()
 
         let binaryPath = Self.binaryPath()
         guard FileManager.default.fileExists(atPath: binaryPath) else {
@@ -193,12 +195,17 @@ final class SpankEngine: ObservableObject {
         proc.standardOutput = stdout
         proc.standardError = FileHandle.nullDevice
 
-        proc.terminationHandler = { [weak self] _ in
+        proc.terminationHandler = { [weak self] terminatedProc in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                if self.status != .stopped {
-                    self.status = .stopped
-                    self.isEnabled = false
+                // Ignore if a newer process has already replaced this one
+                guard self.process === terminatedProc else { return }
+                self.status = .stopped
+                // Auto-restart if the process died unexpectedly (not a user-initiated stop)
+                if self.isEnabled {
+                    NSLog("SmackMyMacUp: process terminated unexpectedly, restarting…")
+                    try? await Task.sleep(for: .milliseconds(500))
+                    self.start()
                 }
             }
         }
@@ -236,6 +243,7 @@ final class SpankEngine: ObservableObject {
 
     func stop() {
         NSLog("SmackMyMacUp: stopping")
+        isEnabled = false
         readTask?.cancel()
         readTask = nil
 
@@ -269,6 +277,7 @@ final class SpankEngine: ObservableObject {
         isRestarting = wasRunning
         stop()
         if wasRunning {
+            isEnabled = true  // re-enable so start() works
             Task {
                 try? await Task.sleep(for: .milliseconds(300))
                 start()

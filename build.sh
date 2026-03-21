@@ -75,12 +75,36 @@ echo "=============================="
 echo ""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_SOURCE="$SCRIPT_DIR/SmackMyMacUp.app"
+
+# If app not next to script (e.g. BetterZip extracted only this file),
+# try to find and extract from the zip in ~/Downloads
+if [ ! -d "$APP_SOURCE" ]; then
+    echo "App not found next to installer — extracting from zip..."
+    ZIP_FILE="$(ls -t ~/Downloads/SmackMyMacUp*.zip 2>/dev/null | head -1)"
+    if [ -z "$ZIP_FILE" ]; then
+        echo "ERROR: Could not find SmackMyMacUp.zip in ~/Downloads"
+        echo "Please extract the full zip first, then run Install.command"
+        echo ""
+        read -n 1 -s -r -p "Press any key to close..."
+        exit 1
+    fi
+    TEMP_DIR="$(mktemp -d)"
+    unzip -qo "$ZIP_FILE" -d "$TEMP_DIR"
+    APP_SOURCE="$TEMP_DIR/SmackMyMacUp.app"
+    if [ ! -d "$APP_SOURCE" ]; then
+        echo "ERROR: Could not find SmackMyMacUp.app in the zip"
+        rm -rf "$TEMP_DIR"
+        read -n 1 -s -r -p "Press any key to close..."
+        exit 1
+    fi
+fi
 
 # Close the app if running
 pkill -x SmackMyMacUp 2>/dev/null && sleep 1
 
 echo "Installing SmackMyMacUp.app..."
-cp -R "$SCRIPT_DIR/SmackMyMacUp.app" /Applications/
+cp -R "$APP_SOURCE" /Applications/
 xattr -cr /Applications/SmackMyMacUp.app
 echo "✓ Installed to /Applications"
 echo "✓ Quarantine flag removed"
@@ -89,6 +113,9 @@ echo "Launching SmackMyMacUp..."
 open /Applications/SmackMyMacUp.app
 echo ""
 echo "Done! You can close this window."
+
+# Clean up temp dir if we created one
+[ -n "${TEMP_DIR:-}" ] && rm -rf "$TEMP_DIR"
 INSTALLER
 chmod +x "$ZIP_DIR/Install.command"
 
